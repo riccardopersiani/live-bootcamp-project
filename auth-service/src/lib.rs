@@ -3,7 +3,14 @@ use std::error::Error;
 use tokio::net::TcpListener;
 use tower_http::services::ServeDir;
 
+pub mod app_state;
+pub mod domain;
 pub mod routes;
+pub mod services;
+
+use app_state::AppState;
+
+use crate::routes::{login, logout, signup, verify_2fa, verify_token};
 
 // This struct encapsulates our application-related logic.
 pub struct Application {
@@ -14,15 +21,16 @@ pub struct Application {
 }
 
 impl Application {
-    pub async fn build(address: &str) -> Result<Self, Box<dyn Error>> {
+    pub async fn build(app_state: AppState, address: &str) -> Result<Self, Box<dyn Error>> {
         let assets_dir = ServeDir::new("assets");
         let router = Router::new()
             .fallback_service(assets_dir)
-            .route("/signup", post(routes::signup))
-            .route("/login", post(routes::login))
-            .route("/logout", post(routes::logout))
-            .route("/verify-2fa", post(routes::verify_2fa))
-            .route("/verify-token", post(routes::verify_token));
+            .route("/signup", post(signup))
+            .route("/login", post(login))
+            .route("/verify-2fa", post(verify_2fa))
+            .route("/logout", post(logout))
+            .route("/verify-token", post(verify_token))
+            .with_state(app_state);
 
         let listener = tokio::net::TcpListener::bind(address).await?;
         let address = listener.local_addr()?.to_string();
