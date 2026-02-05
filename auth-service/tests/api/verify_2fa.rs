@@ -7,5 +7,4 @@ async fn verify_2fa_returns_auth_ui() {
     let response = app.post_verify_2fa().await;
 
     assert_eq!(response.status().as_u16(), 200);
-    // assert_eq!(response.headers().get("content-type").unwrap(), "text/html");
 }
