@@ -1,10 +1,10 @@
 use std::collections::HashMap;
 
-use crate::domain::{User, UserStore, UserStoreError};
+use crate::domain::{Email, Password, User, UserStore, UserStoreError};
 
 #[derive(Default)]
 pub struct HashmapUserStore {
-    users: HashMap<String, User>,
+    users: HashMap<Email, User>,
 }
 
 #[async_trait::async_trait]
@@ -28,7 +28,7 @@ impl HashmapUserStore {
     // This function should return a `Result` type containing either a
     // `User` object or a `UserStoreError`.
     // Return `UserStoreError::UserNotFound` if the user can not be found.
-    pub fn get_user(&self, email: String) -> Result<User, UserStoreError> {
+    pub fn get_user(&self, email: Email) -> Result<User, UserStoreError> {
         self.users
             .get(&email)
             .cloned()
@@ -41,7 +41,7 @@ impl HashmapUserStore {
     // unit type `()` if the email/password passed in match an existing user, or a `UserStoreError`.
     // Return `UserStoreError::UserNotFound` if the user can not be found.
     // Return `UserStoreError::InvalidCredentials` if the password is incorrect.
-    pub fn validate_user(&self, email: String, password: String) -> Result<(), UserStoreError> {
+    pub fn validate_user(&self, email: Email, password: Password) -> Result<(), UserStoreError> {
         let user = match self.get_user(email) {
             Ok(user) => user,
             // UserStoreError::UserNotFound frp, get_user
@@ -63,8 +63,8 @@ mod tests {
     pub async fn test_add_user() {
         let mut hashmap = HashmapUserStore::default();
         let user = User {
-            email: String::from("test@mail.com"),
-            password: String::from("1234"),
+            email: Email::parse("a@b.com".to_string()).unwrap(),
+            password: Password::parse("12345678".to_string()).unwrap(),
             requires_2fa: false,
         };
         hashmap.add_user(user).expect("Failed to add user");
@@ -73,10 +73,10 @@ mod tests {
     #[tokio::test]
     pub async fn test_get_user() {
         let mut hashmap = HashmapUserStore::default();
-        let email = String::from("test@mail.com");
+        let email = Email::parse("test@mail.com".to_string()).unwrap();
         let user = User {
             email: email.clone(),
-            password: String::from("1234"),
+            password: Password::parse("12345678".to_string()).unwrap(),
             requires_2fa: false,
         };
         hashmap.add_user(user).expect("Failed to add user");
@@ -87,11 +87,11 @@ mod tests {
     #[tokio::test]
     pub async fn test_validate_user() {
         let mut hashmap = HashmapUserStore::default();
-        let email = String::from("test@mail.com");
-        let password = String::from("1234");
+        let email = Email::parse("test@mail.com".to_string()).unwrap();
+        let password = Password::parse("12345678".to_string()).unwrap();
         let user = User {
             email: email.clone(),
-            password: String::from("1234"),
+            password: Password::parse("12345678".to_string()).unwrap(),
             requires_2fa: false,
         };
         hashmap.add_user(user).expect("Failed to add user");

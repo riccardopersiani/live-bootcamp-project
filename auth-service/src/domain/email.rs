@@ -1,12 +1,12 @@
-use std::fmt::Error;
+use crate::domain::AuthAPIError;
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct Email(String);
 
 impl Email {
-    fn parse(email: String) -> Result<Self, Error> {
-        if !email.contains("@") {
-            return Err(Error);
+    pub fn parse(email: String) -> Result<Self, AuthAPIError> {
+        if !email.contains("@") || email.is_empty() {
+            return Err(AuthAPIError::InvalidCredentials);
         }
         Ok(Self(email))
     }

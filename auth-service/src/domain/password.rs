@@ -1,12 +1,12 @@
-use std::fmt::Error;
+use crate::domain::AuthAPIError;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Password(String);
 
 impl Password {
-    fn parse(password: String) -> Result<Self, Error> {
+    pub fn parse(password: String) -> Result<Self, AuthAPIError> {
         if password.len() < 8 {
-            return Err(Error);
+            return Err(AuthAPIError::InvalidCredentials);
         }
         Ok(Self(password))
     }
