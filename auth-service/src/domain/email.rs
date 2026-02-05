@@ -1,24 +1,20 @@
 use std::fmt::Error;
-use validator::{Validate, ValidationError};
 
-#[derive(Debug, Clone, PartialEq, Eq, Validate)]
-pub struct Email {
-    #[validate(email)]
-    email: String,
-}
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Email(String);
 
 impl Email {
     fn parse(email: String) -> Result<Self, Error> {
         if !email.contains("@") {
             return Err(Error);
         }
-        Ok(Self { email })
+        Ok(Self(email))
     }
 }
 
 impl AsRef<str> for Email {
     fn as_ref(&self) -> &str {
-        &self.email
+        &self.0
     }
 }
 
