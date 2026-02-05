@@ -61,7 +61,6 @@ async fn should_return_422_if_malformed_credentials() {
 
 #[tokio::test]
 async fn should_return_400_if_invalid_input() {
-    // The signup route should return a 400 HTTP status code if an invalid input is sent.
     let app = TestApp::new().await;
 
     let random_email = TestApp::get_random_email(); // Call helper method to generate email
