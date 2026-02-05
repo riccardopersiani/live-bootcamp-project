@@ -91,3 +91,111 @@ async fn should_return_401_if_invalid_token() {
         );
     }
 }
+
+#[tokio::test]
+async fn should_return_200_if_valid_jwt_cookie() {
+    let app = TestApp::new().await;
+
+    let random_email = TestApp::get_random_email();
+
+    let signup_body = serde_json::json!({
+        "email": random_email,
+        "password": "password123",
+        "requires2FA": false
+    });
+
+    let response = app.post_signup(&signup_body).await;
+
+    assert_eq!(response.status().as_u16(), 201);
+
+    let login_body = serde_json::json!({
+        "email": random_email,
+        "password": "password123",
+    });
+
+    let response = app.post_login(&login_body).await;
+
+    assert_eq!(response.status().as_u16(), 200);
+
+    let auth_cookie = response
+        .cookies()
+        .find(|cookie| cookie.name() == JWT_COOKIE_NAME)
+        .expect("No auth cookie found");
+
+    assert!(!auth_cookie.value().is_empty());
+
+    let logout_body = serde_json::json!({
+        "email": random_email,
+        "password": "password123",
+        "requires2FA": false
+    });
+
+    let response = app.post_logout(&logout_body).await;
+
+    assert_eq!(response.status().as_u16(), 200);
+
+    let maybe_cookie = response
+        .cookies()
+        .find(|cookie| cookie.name() == JWT_COOKIE_NAME);
+
+    assert!(
+        maybe_cookie.is_none() || maybe_cookie.unwrap().value().is_empty(),
+        "Expected JWT cookie to be removed/expired"
+    );
+}
+
+#[tokio::test]
+async fn should_return_400_if_logout_called_twice_in_a_row() {
+    let app = TestApp::new().await;
+
+    let random_email = TestApp::get_random_email();
+
+    let signup_body = serde_json::json!({
+        "email": random_email,
+        "password": "password123",
+        "requires2FA": false
+    });
+
+    let response = app.post_signup(&signup_body).await;
+
+    assert_eq!(response.status().as_u16(), 201);
+
+    let login_body = serde_json::json!({
+        "email": random_email,
+        "password": "password123",
+    });
+
+    let response = app.post_login(&login_body).await;
+
+    assert_eq!(response.status().as_u16(), 200);
+
+    let auth_cookie = response
+        .cookies()
+        .find(|cookie| cookie.name() == JWT_COOKIE_NAME)
+        .expect("No auth cookie found");
+
+    assert!(!auth_cookie.value().is_empty());
+
+    let logout_body = serde_json::json!({
+        "email": random_email,
+        "password": "password123",
+        "requires2FA": false
+    });
+
+    let response = app.post_logout(&logout_body).await;
+
+    assert_eq!(response.status().as_u16(), 200);
+
+    let maybe_cookie = response
+        .cookies()
+        .find(|cookie| cookie.name() == JWT_COOKIE_NAME);
+
+    assert!(
+        maybe_cookie.is_none() || maybe_cookie.unwrap().value().is_empty(),
+        "Expected JWT cookie to be removed/expired"
+    );
+
+    let response = app.post_logout(&logout_body).await;
+
+    assert_eq!(response.status().as_u16(), 400);
+}
