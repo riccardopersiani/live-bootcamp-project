@@ -1,4 +1,6 @@
-use auth_service::{app_state::AppState, services::HashmapUserStore, Application};
+use auth_service::{
+    app_state::AppState, services::HashmapUserStore, utils::constants::test, Application,
+};
 use reqwest::cookie::Jar;
 use serde_json::json;
 use std::sync::Arc;
@@ -16,7 +18,7 @@ impl TestApp {
         let user_store = Arc::new(RwLock::new(HashmapUserStore::default()));
         let app_state = AppState::new(user_store);
 
-        let app = Application::build(app_state, "127.0.0.1:0")
+        let app = Application::build(app_state, test::APP_ADDRESS)
             .await
             .expect("Failed to build app");
 
