@@ -1,17 +1,22 @@
 use axum::{extract::State, http::StatusCode, response::IntoResponse, Json};
 use serde::Deserialize;
 
-use crate::{app_state::AppState, domain::AuthAPIError};
+use crate::{app_state::AppState, domain::AuthAPIError, utils::auth::validate_token};
 
 pub async fn verify_token(
     State(state): State<AppState>,
     Json(request): Json<VerifyTokenRequest>,
 ) -> Result<impl IntoResponse, AuthAPIError> {
     let token = request.token;
+
     if token.is_empty() {
         return Err(AuthAPIError::MalformedToken);
     }
-    Ok(StatusCode::OK)
+
+    match validate_token(token.to_owned().as_str()).await {
+        Ok(_) => Ok(StatusCode::OK),
+        Err(_) => Err(AuthAPIError::IncorrectCredentials),
+    }
 }
 
 #[derive(Deserialize)]
