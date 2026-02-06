@@ -7,9 +7,6 @@ pub struct HashmapUserStore {
     users: HashMap<Email, User>,
 }
 
-#[async_trait::async_trait]
-impl UserStore for HashmapUserStore {}
-
 impl HashmapUserStore {
     pub fn add_user(&mut self, user: User) -> Result<(), UserStoreError> {
         match self.users.entry(user.email.clone()) {
