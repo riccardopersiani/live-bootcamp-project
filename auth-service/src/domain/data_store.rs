@@ -1,4 +1,27 @@
+use std::collections::HashSet;
+
+use crate::domain::AuthAPIError;
+
 use super::User;
+
+pub struct BannedTokenStore {
+    banned_token_store: HashSet<String>,
+}
+
+impl BannedTokenStore {
+    //  storing tokens (as Strings)
+    fn store_tokens(&mut self, value: String) -> Result<&mut Self, AuthAPIError> {
+        self.banned_token_store.insert(value);
+        Ok(self)
+    }
+    // checking if a token exists within the banned token store
+    fn check_if_exist(&self, value: String) -> bool {
+        match self.banned_token_store.get(&value) {
+            Some(_) => true,
+            None => false,
+        }
+    }
+}
 
 #[async_trait::async_trait]
 pub trait UserStore {
