@@ -1,10 +1,10 @@
-mod data_store;
+pub mod data_stores;
 pub mod email;
 mod error;
 mod password;
 mod user;
 
-pub use data_store::*;
+pub use data_stores::*;
 pub use email::*;
 pub use error::*;
 pub use password::*;

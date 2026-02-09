@@ -7,8 +7,9 @@ pub struct HashmapUserStore {
     users: HashMap<Email, User>,
 }
 
-impl HashmapUserStore {
-    pub async fn add_user(&mut self, user: User) -> Result<(), UserStoreError> {
+#[async_trait::async_trait]
+impl UserStore for HashmapUserStore {
+    async fn add_user(&mut self, user: User) -> Result<(), UserStoreError> {
         match self.users.entry(user.email.clone()) {
             std::collections::hash_map::Entry::Occupied(_) => {
                 Err(UserStoreError::UserAlreadyExists)
@@ -25,7 +26,7 @@ impl HashmapUserStore {
     // This function should return a `Result` type containing either a
     // `User` object or a `UserStoreError`.
     // Return `UserStoreError::UserNotFound` if the user can not be found.
-    pub async fn get_user(&self, email: &Email) -> Result<User, UserStoreError> {
+    async fn get_user(&self, email: &Email) -> Result<User, UserStoreError> {
         self.users
             .get(email)
             .cloned()
@@ -38,17 +39,17 @@ impl HashmapUserStore {
     // unit type `()` if the email/password passed in match an existing user, or a `UserStoreError`.
     // Return `UserStoreError::UserNotFound` if the user can not be found.
     // Return `UserStoreError::InvalidCredentials` if the password is incorrect.
-    pub async fn validate_user(
+    async fn validate_user(
         &self,
-        email: Email,
-        password: Password,
+        email: &Email,
+        password: &Password,
     ) -> Result<(), UserStoreError> {
         let user = match self.get_user(&email).await {
             Ok(user) => user,
             // UserStoreError::UserNotFound frp, get_user
             Err(e) => return Err(e),
         };
-        if user.password != password {
+        if &user.password != password {
             Err(UserStoreError::InvalidCredentials)
         } else {
             Ok(())
@@ -75,14 +76,26 @@ mod tests {
     pub async fn test_get_user() {
         let mut hashmap = HashmapUserStore::default();
         let email = Email::parse("test@mail.com".to_string()).unwrap();
+        let password = Password::parse("12345678".to_string()).unwrap();
+        let requires_2fa = false;
         let user = User {
             email: email.clone(),
-            password: Password::parse("12345678".to_string()).unwrap(),
-            requires_2fa: false,
+            password: password.clone(),
+            requires_2fa: requires_2fa.clone(),
         };
+
         hashmap.add_user(user).await.expect("Failed to add user");
 
-        hashmap.get_user(&email).await.ok();
+        let maybe_user = hashmap.users.get(&email);
+
+        match maybe_user {
+            Some(user) => {
+                assert_eq!(user.email, email);
+                assert_eq!(user.password, password);
+                assert_eq!(user.requires_2fa, requires_2fa);
+            }
+            None => panic!("user is not added"),
+        }
     }
 
     #[tokio::test]
@@ -96,6 +109,6 @@ mod tests {
             requires_2fa: false,
         };
         hashmap.add_user(user).await.expect("Failed to add user");
-        hashmap.validate_user(email, password).await.ok();
+        hashmap.validate_user(&email, &password).await.ok();
     }
 }

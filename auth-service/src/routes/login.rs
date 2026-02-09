@@ -1,6 +1,9 @@
 use crate::{
     app_state::AppState,
-    domain::{AuthAPIError, Email, Password, UserStoreError},
+    domain::{
+        AuthAPIError, Email, LoginAttemptId, Password, TwoFACode, TwoFACodeStore, UserStore,
+        UserStoreError,
+    },
     utils::auth::generate_auth_cookie,
 };
 use axum::{extract::State, http::StatusCode, response::IntoResponse, Json};
@@ -22,9 +25,10 @@ pub async fn login(
         Ok(password) => password,
         Err(_) => return (jar, Err(AuthAPIError::InvalidCredentials)),
     };
-    let user_store = &state.user_store.read().await;
 
-    let user = match user_store.get_user(&email).await {
+    let store = state.user_store.read().await;
+
+    let user = match store.get_user(&email).await {
         Ok(user) => user,
         Err(UserStoreError::UserNotFound) => {
             return (jar, Err(AuthAPIError::IncorrectCredentials));
@@ -43,26 +47,42 @@ pub async fn login(
 
     let updated_jar = jar.clone().add(auth_cookie);
 
-    let user = match user_store.get_user(&email).await {
+    let user = match store.get_user(&email).await {
         Ok(user) => user,
         Err(_) => return (updated_jar, Err(AuthAPIError::IncorrectCredentials)),
     };
 
     match user.requires_2fa {
-        true => handle_2fa(updated_jar).await,
+        true => handle_2fa(&email, &state, updated_jar).await,
         false => handle_no_2fa(&user.email, updated_jar).await,
     }
 }
 
 async fn handle_2fa(
+    email: &Email,    // New!
+    state: &AppState, // New!
     jar: CookieJar,
 ) -> (
     CookieJar,
     Result<(StatusCode, Json<LoginResponse>), AuthAPIError>,
 ) {
+    // First, we must generate a new random login attempt ID and 2FA code
+    let login_attempt_id = LoginAttemptId::default();
+    let code = TwoFACode::default();
+
+    let mut store = state.two_fa_code_store.write().await;
+    if store
+        .add_code(email.clone(), login_attempt_id.clone(), code)
+        .await
+        .is_err()
+    {
+        return (jar, Err(AuthAPIError::UnexpectedError));
+    }
+
+    // Finally, we need to return the login attempt ID to the client
     let response = Json(LoginResponse::TwoFactorAuth(TwoFactorAuthResponse {
-        message: "2FA required".to_string(),
-        login_attempt_id: "123456".to_string(),
+        message: "2FA required".to_owned(),
+        login_attempt_id: login_attempt_id.as_ref().to_string(), // Add the generated login attempt ID
     }));
     (jar, Ok((StatusCode::PARTIAL_CONTENT, response)))
 }
