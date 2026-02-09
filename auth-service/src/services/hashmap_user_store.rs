@@ -8,7 +8,7 @@ pub struct HashmapUserStore {
 }
 
 impl HashmapUserStore {
-    pub fn add_user(&mut self, user: User) -> Result<(), UserStoreError> {
+    pub async fn add_user(&mut self, user: User) -> Result<(), UserStoreError> {
         match self.users.entry(user.email.clone()) {
             std::collections::hash_map::Entry::Occupied(_) => {
                 Err(UserStoreError::UserAlreadyExists)
@@ -25,9 +25,9 @@ impl HashmapUserStore {
     // This function should return a `Result` type containing either a
     // `User` object or a `UserStoreError`.
     // Return `UserStoreError::UserNotFound` if the user can not be found.
-    pub fn get_user(&self, email: Email) -> Result<User, UserStoreError> {
+    pub async fn get_user(&self, email: &Email) -> Result<User, UserStoreError> {
         self.users
-            .get(&email)
+            .get(email)
             .cloned()
             .ok_or(UserStoreError::UserNotFound)
     }
@@ -38,8 +38,12 @@ impl HashmapUserStore {
     // unit type `()` if the email/password passed in match an existing user, or a `UserStoreError`.
     // Return `UserStoreError::UserNotFound` if the user can not be found.
     // Return `UserStoreError::InvalidCredentials` if the password is incorrect.
-    pub fn validate_user(&self, email: Email, password: Password) -> Result<(), UserStoreError> {
-        let user = match self.get_user(email) {
+    pub async fn validate_user(
+        &self,
+        email: Email,
+        password: Password,
+    ) -> Result<(), UserStoreError> {
+        let user = match self.get_user(&email).await {
             Ok(user) => user,
             // UserStoreError::UserNotFound frp, get_user
             Err(e) => return Err(e),
@@ -64,7 +68,7 @@ mod tests {
             password: Password::parse("12345678".to_string()).unwrap(),
             requires_2fa: false,
         };
-        hashmap.add_user(user).expect("Failed to add user");
+        hashmap.add_user(user).await.expect("Failed to add user");
     }
 
     #[tokio::test]
@@ -76,9 +80,9 @@ mod tests {
             password: Password::parse("12345678".to_string()).unwrap(),
             requires_2fa: false,
         };
-        hashmap.add_user(user).expect("Failed to add user");
+        hashmap.add_user(user).await.expect("Failed to add user");
 
-        hashmap.get_user(email.clone()).ok();
+        hashmap.get_user(&email).await.ok();
     }
 
     #[tokio::test]
@@ -91,7 +95,7 @@ mod tests {
             password: Password::parse("12345678".to_string()).unwrap(),
             requires_2fa: false,
         };
-        hashmap.add_user(user).expect("Failed to add user");
-        hashmap.validate_user(email, password).ok();
+        hashmap.add_user(user).await.expect("Failed to add user");
+        hashmap.validate_user(email, password).await.ok();
     }
 }
