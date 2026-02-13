@@ -1,8 +1,5 @@
 use axum::{extract::State, http::StatusCode, response::IntoResponse};
-use axum_extra::extract::{
-    cookie::{self, Cookie},
-    CookieJar,
-};
+use axum_extra::extract::{cookie::Cookie, CookieJar};
 
 use crate::{
     app_state::AppState,
@@ -14,23 +11,28 @@ pub async fn logout(
     jar: CookieJar,
     State(state): State<AppState>,
 ) -> (CookieJar, Result<impl IntoResponse, AuthAPIError>) {
-    // Retrieve JWT cookie from the `CookieJar`
-    // Return AuthAPIError::MissingToken is the cookie is not found
     let cookie = match jar.get(JWT_COOKIE_NAME) {
         Some(cookie) => cookie,
         None => return (jar, Err(AuthAPIError::MissingToken)),
     };
-    let token = cookie.value().to_owned();
 
-    let mut state = state.banned_token_store.write().await;
-    // Return AuthAPIError::InvalidToken is validation fails.
-    let res = validate_token(token.as_str(), &state).await;
-    state.store_token(token.clone());
-    match res {
-        Ok(_) => {
-            let jar = jar.remove(Cookie::from(JWT_COOKIE_NAME));
-            (jar, Ok(StatusCode::OK))
-        }
-        Err(_) => (jar, Err(AuthAPIError::InvalidToken)),
+    let token = cookie.value().to_owned();
+    let _ = match validate_token(&token, state.banned_token_store.clone()).await {
+        Ok(claims) => claims,
+        Err(_) => return (jar, Err(AuthAPIError::InvalidToken)),
+    };
+
+    if state
+        .banned_token_store
+        .write()
+        .await
+        .store_token(token.clone())
+        .await
+        .is_err()
+    {
+        return (jar, Err(AuthAPIError::UnexpectedError));
     }
+    let jar = jar.remove(Cookie::from(JWT_COOKIE_NAME));
+
+    (jar, Ok(StatusCode::OK))
 }

@@ -1,35 +1,30 @@
 use uuid::Uuid;
-use validator::ValidateLength;
 
-use crate::domain::{AuthAPIError, Email, Password};
+use crate::domain::{Email, Password};
 
 use super::User;
 
 #[async_trait::async_trait]
 pub trait BannedTokenStore {
-    async fn store_token(&mut self, value: String) -> Result<&mut Self, AuthAPIError>;
-    async fn check_if_exists(&self, value: String) -> bool;
+    async fn store_token(&mut self, value: String) -> Result<(), BannedTokenStoreError>;
+    async fn check_if_exists(&self, value: String) -> Result<bool, BannedTokenStoreError>;
+}
+
+#[derive(Debug)]
+pub enum BannedTokenStoreError {
+    UnexpectedError,
 }
 
 #[async_trait::async_trait]
-pub trait UserStore {
+pub trait UserStore: Send + Sync {
     async fn add_user(&mut self, user: User) -> Result<(), UserStoreError>;
     async fn get_user(&self, email: &Email) -> Result<User, UserStoreError>;
     async fn validate_user(&self, email: &Email, password: &Password)
         -> Result<(), UserStoreError>;
 }
 
-#[derive(Debug, PartialEq)]
-pub enum UserStoreError {
-    UserAlreadyExists,
-    UserNotFound,
-    InvalidCredentials,
-    UnexpectedError,
-}
-
-// This trait represents the interface all concrete 2FA code stores should implement
 #[async_trait::async_trait]
-pub trait TwoFACodeStore {
+pub trait TwoFACodeStore: Send + Sync {
     async fn add_code(
         &mut self,
         email: Email,
@@ -41,6 +36,14 @@ pub trait TwoFACodeStore {
         &self,
         email: &Email,
     ) -> Result<(LoginAttemptId, TwoFACode), TwoFACodeStoreError>;
+}
+
+#[derive(Debug, PartialEq)]
+pub enum UserStoreError {
+    UserAlreadyExists,
+    UserNotFound,
+    InvalidCredentials,
+    UnexpectedError,
 }
 
 #[derive(Debug, PartialEq)]

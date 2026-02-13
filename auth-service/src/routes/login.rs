@@ -1,9 +1,6 @@
 use crate::{
     app_state::AppState,
-    domain::{
-        AuthAPIError, Email, LoginAttemptId, Password, TwoFACode, TwoFACodeStore, UserStore,
-        UserStoreError,
-    },
+    domain::{AuthAPIError, Email, LoginAttemptId, Password, TwoFACode, UserStoreError},
     utils::auth::generate_auth_cookie,
 };
 use axum::{extract::State, http::StatusCode, response::IntoResponse, Json};
@@ -88,7 +85,7 @@ async fn handle_2fa(
 }
 
 async fn handle_no_2fa(
-    email: &Email,
+    #[warn(unused)] _email: &Email,
     jar: CookieJar,
 ) -> (
     CookieJar,

@@ -39,8 +39,6 @@ impl TwoFACodeStore for HashmapTwoFACodeStore {
 
 #[cfg(test)]
 mod tests {
-    use core::hash;
-
     use crate::{
         domain::{Email, LoginAttemptId, TwoFACode, TwoFACodeStore},
         services::HashmapTwoFACodeStore,

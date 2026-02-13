@@ -1,4 +1,4 @@
-use auth_service::{app_state, utils::constants::JWT_COOKIE_NAME, ErrorResponse};
+use auth_service::{domain::BannedTokenStore, utils::constants::JWT_COOKIE_NAME, ErrorResponse};
 use reqwest::Url;
 
 use crate::helpers::TestApp;
@@ -143,8 +143,12 @@ async fn should_return_200_if_valid_jwt_cookie() {
         "Expected JWT cookie to be removed/expired"
     );
 
-    let store = app.banned_token_store.write().await;
-    assert_eq!(store.check_if_exists(auth_cookie.value().to_string()), true);
+    let banned_token_store = app.banned_token_store.read().await;
+    let exists = banned_token_store
+        .check_if_exists(auth_cookie.value().to_string())
+        .await
+        .expect("Failed to check if token is banned");
+    assert!(exists);
 }
 
 #[tokio::test]

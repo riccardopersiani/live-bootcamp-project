@@ -3,7 +3,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     app_state::AppState,
-    domain::{AuthAPIError, Email, Password, User, UserStore},
+    domain::{AuthAPIError, Email, Password, User},
 };
 
 pub async fn signup(
@@ -28,7 +28,7 @@ pub async fn signup(
 
     match store.add_user(user).await {
         Ok(v) => v,
-        Err(e) => return Err(AuthAPIError::UnexpectedError),
+        Err(_) => return Err(AuthAPIError::UnexpectedError),
     }
 
     let response = Json(SignupResponse {
