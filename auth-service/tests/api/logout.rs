@@ -27,7 +27,7 @@ async fn should_return_400_if_jwt_cookie_missing() {
     ];
 
     for test_case in test_cases.iter() {
-        let response = app.post_logout(test_case).await; // call `post_login`
+        let response = app.post_logout(test_case).await;
         assert_eq!(
             response.status().as_u16(),
             400,
@@ -74,7 +74,7 @@ async fn should_return_401_if_invalid_token() {
     ];
 
     for test_case in test_cases.iter() {
-        let response = app.post_logout(test_case).await; // call `post_login`
+        let response = app.post_logout(test_case).await;
         assert_eq!(
             response.status().as_u16(),
             401,
