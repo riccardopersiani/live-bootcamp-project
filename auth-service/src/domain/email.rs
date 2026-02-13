@@ -24,7 +24,7 @@ mod tests {
 
     #[test]
     fn parse_returns_ok_for_valid_email() {
-        let email: Result<Email, AuthAPIError> = Email::parse("test@example.com".to_string());
+        let email = Email::parse("test@example.com".to_string());
         assert!(email.is_ok());
 
         let email = email.unwrap();

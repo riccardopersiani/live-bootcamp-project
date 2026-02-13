@@ -23,17 +23,15 @@ pub async fn login(
         Err(_) => return (jar, Err(AuthAPIError::InvalidCredentials)),
     };
 
-    let store = state.user_store.read().await;
+    let user_store = state.user_store.read().await;
 
-    let user = match store.get_user(&email).await {
+    if user_store.validate_user(&email, &password).await.is_err() {
+        return (jar, Err(AuthAPIError::IncorrectCredentials));
+    }
+
+    let user = match user_store.get_user(&email).await {
         Ok(user) => user,
-        Err(UserStoreError::UserNotFound) => {
-            return (jar, Err(AuthAPIError::IncorrectCredentials));
-        }
-        Err(UserStoreError::InvalidCredentials) => {
-            return (jar, Err(AuthAPIError::InvalidCredentials));
-        }
-        Err(_) => return (jar, Err(AuthAPIError::UnexpectedError)),
+        Err(_) => return (jar, Err(AuthAPIError::IncorrectCredentials)),
     };
 
     if user.password.as_ref() != password.as_ref() {
@@ -44,7 +42,7 @@ pub async fn login(
 
     let updated_jar = jar.clone().add(auth_cookie);
 
-    let user = match store.get_user(&email).await {
+    let user = match user_store.get_user(&email).await {
         Ok(user) => user,
         Err(_) => return (updated_jar, Err(AuthAPIError::IncorrectCredentials)),
     };
@@ -64,32 +62,35 @@ async fn handle_2fa(
     Result<(StatusCode, Json<LoginResponse>), AuthAPIError>,
 ) {
     let login_attempt_id = LoginAttemptId::default();
-    let code = TwoFACode::default();
+    let two_fa_code = TwoFACode::default();
 
-    let mut store = state.two_fa_code_store.write().await;
-    if store
-        .add_code(email.clone(), login_attempt_id.clone(), code.clone())
+    if state
+        .two_fa_code_store
+        .write()
+        .await
+        .add_code(email.clone(), login_attempt_id.clone(), two_fa_code.clone())
         .await
         .is_err()
     {
         return (jar, Err(AuthAPIError::UnexpectedError));
     }
 
-    match state
+    if state
         .email_client
         .read()
         .await
-        .send_email(email, "bro", code.as_ref())
+        .send_email(email, "2FA Code", two_fa_code.as_ref())
         .await
+        .is_err()
     {
-        Ok(_) => {}
-        Err(_) => return (jar, Err(AuthAPIError::UnexpectedError)),
+        return (jar, Err(AuthAPIError::UnexpectedError));
     }
 
     let response = Json(LoginResponse::TwoFactorAuth(TwoFactorAuthResponse {
         message: "2FA required".to_owned(),
         login_attempt_id: login_attempt_id.as_ref().to_string(), // Add the generated login attempt ID
     }));
+
     (jar, Ok((StatusCode::PARTIAL_CONTENT, response)))
 }
 
