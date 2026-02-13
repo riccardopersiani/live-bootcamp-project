@@ -56,27 +56,36 @@ pub async fn login(
 }
 
 async fn handle_2fa(
-    email: &Email,    // New!
-    state: &AppState, // New!
+    email: &Email,
+    state: &AppState,
     jar: CookieJar,
 ) -> (
     CookieJar,
     Result<(StatusCode, Json<LoginResponse>), AuthAPIError>,
 ) {
-    // First, we must generate a new random login attempt ID and 2FA code
     let login_attempt_id = LoginAttemptId::default();
     let code = TwoFACode::default();
 
     let mut store = state.two_fa_code_store.write().await;
     if store
-        .add_code(email.clone(), login_attempt_id.clone(), code)
+        .add_code(email.clone(), login_attempt_id.clone(), code.clone())
         .await
         .is_err()
     {
         return (jar, Err(AuthAPIError::UnexpectedError));
     }
 
-    // Finally, we need to return the login attempt ID to the client
+    match state
+        .email_client
+        .read()
+        .await
+        .send_email(email, "bro", code.as_ref())
+        .await
+    {
+        Ok(_) => {}
+        Err(_) => return (jar, Err(AuthAPIError::UnexpectedError)),
+    }
+
     let response = Json(LoginResponse::TwoFactorAuth(TwoFactorAuthResponse {
         message: "2FA required".to_owned(),
         login_attempt_id: login_attempt_id.as_ref().to_string(), // Add the generated login attempt ID
