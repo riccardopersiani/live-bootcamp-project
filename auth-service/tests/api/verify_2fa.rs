@@ -1,8 +1,4 @@
-use auth_service::{
-    domain::{Email, LoginAttemptId, TwoFACode},
-    routes::TwoFactorAuthResponse,
-    ErrorResponse,
-};
+use auth_service::{domain::Email, routes::TwoFactorAuthResponse};
 
 use crate::helpers::TestApp;
 
