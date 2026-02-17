@@ -1,6 +1,6 @@
 use uuid::Uuid;
 
-use crate::domain::{Email, Password};
+use crate::domain::Email;
 
 use super::User;
 
@@ -19,8 +19,7 @@ pub enum BannedTokenStoreError {
 pub trait UserStore: Send + Sync {
     async fn add_user(&mut self, user: User) -> Result<(), UserStoreError>;
     async fn get_user(&self, email: &Email) -> Result<User, UserStoreError>;
-    async fn validate_user(&self, email: &Email, password: &Password)
-        -> Result<(), UserStoreError>;
+    async fn validate_user(&self, email: &Email, raw_password: &str) -> Result<(), UserStoreError>;
 }
 
 #[async_trait::async_trait]

@@ -14,6 +14,7 @@ async fn should_return_200_if_valid_credentials_and_2fa_disabled() {
         "password": "password123",
         "requires2FA": false
     });
+    
     let response = app.post_signup(&signup_body).await;
 
     assert_eq!(response.status().as_u16(), 201);

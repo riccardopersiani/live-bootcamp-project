@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use crate::domain::{Email, Password, User, UserStore, UserStoreError};
+use crate::domain::{Email, User, UserStore, UserStoreError};
 
 #[derive(Default)]
 pub struct HashmapUserStore {
@@ -39,21 +39,13 @@ impl UserStore for HashmapUserStore {
     // unit type `()` if the email/password passed in match an existing user, or a `UserStoreError`.
     // Return `UserStoreError::UserNotFound` if the user can not be found.
     // Return `UserStoreError::InvalidCredentials` if the password is incorrect.
-    async fn validate_user(
-        &self,
-        email: &Email,
-        password: &Password,
-    ) -> Result<(), UserStoreError> {
-        let user = match self.get_user(&email).await {
-            Ok(user) => user,
-            // UserStoreError::UserNotFound frp, get_user
-            Err(e) => return Err(e),
-        };
-        if &user.password != password {
-            Err(UserStoreError::InvalidCredentials)
-        } else {
-            Ok(())
-        }
+    async fn validate_user(&self, email: &Email, raw_password: &str) -> Result<(), UserStoreError> {
+        let user: &User = self.users.get(email).ok_or(UserStoreError::UserNotFound)?;
+
+        user.password
+            .verify_raw_password(raw_password)
+            .await
+            .map_err(|_| UserStoreError::InvalidCredentials)
     }
 }
 
@@ -66,7 +58,7 @@ mod tests {
         let mut hashmap = HashmapUserStore::default();
         let user = User {
             email: Email::parse("a@b.com".to_string()).unwrap(),
-            password: Password::parse("12345678".to_string()).unwrap(),
+            password: HashedPassword::parse("12345678".to_string()).await.unwrap(),
             requires_2fa: false,
         };
         hashmap.add_user(user).await.expect("Failed to add user");
@@ -76,7 +68,7 @@ mod tests {
     pub async fn test_get_user() {
         let mut hashmap = HashmapUserStore::default();
         let email = Email::parse("test@mail.com".to_string()).unwrap();
-        let password = Password::parse("12345678".to_string()).unwrap();
+        let password = HashedPassword::parse("12345678".to_string()).await.unwrap();
         let requires_2fa = false;
         let user = User {
             email: email.clone(),
@@ -102,13 +94,13 @@ mod tests {
     pub async fn test_validate_user() {
         let mut hashmap = HashmapUserStore::default();
         let email = Email::parse("test@mail.com".to_string()).unwrap();
-        let password = Password::parse("12345678".to_string()).unwrap();
+        let raw_password = "12345678".to_owned();
         let user = User {
             email: email.clone(),
-            password: Password::parse("12345678".to_string()).unwrap(),
+            password: HashedPassword::parse("12345678".to_string()).await.unwrap(),
             requires_2fa: false,
         };
         hashmap.add_user(user).await.expect("Failed to add user");
-        hashmap.validate_user(&email, &password).await.ok();
+        hashmap.validate_user(&email, &raw_password).await.ok();
     }
 }

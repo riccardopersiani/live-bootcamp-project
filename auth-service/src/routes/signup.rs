@@ -3,7 +3,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     app_state::AppState,
-    domain::{AuthAPIError, Email, Password, User},
+    domain::{AuthAPIError, Email, HashedPassword, User},
 };
 
 pub async fn signup(
@@ -12,11 +12,13 @@ pub async fn signup(
 ) -> Result<impl IntoResponse, AuthAPIError> {
     let email = Email::parse(request.email).map_err(|e| e)?;
 
-    let password = Password::parse(request.password).map_err(|e| e)?;
+    let password = HashedPassword::parse(request.password)
+        .await
+        .map_err(|_| AuthAPIError::InvalidCredentials)?;
 
     let user = User {
         email: email.clone(),
-        password: password.clone(),
+        password: password,
         requires_2fa: request.requires_2fa,
     };
 
