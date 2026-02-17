@@ -4,8 +4,8 @@ use auth_service::{
     app_state::AppState,
     get_postgres_pool,
     services::{
-        mock_email_client::MockEmailClient, HashmapTwoFACodeStore, HashmapUserStore,
-        HashsetBannedTokenStore,
+        data_stores::{HashmapTwoFACodeStore, HashmapUserStore, HashsetBannedTokenStore},
+        mock_email_client::MockEmailClient,
     },
     utils::constants::{prod, DATABASE_URL},
     Application,

@@ -1,9 +1,6 @@
 use std::collections::HashMap;
 
-use crate::domain::{
-    data_stores::{LoginAttemptId, TwoFACode, TwoFACodeStore, TwoFACodeStoreError},
-    email::Email,
-};
+use crate::domain::{Email, LoginAttemptId, TwoFACode, TwoFACodeStore, TwoFACodeStoreError};
 
 #[derive(Default)]
 pub struct HashmapTwoFACodeStore {
@@ -41,7 +38,7 @@ impl TwoFACodeStore for HashmapTwoFACodeStore {
 mod tests {
     use crate::{
         domain::{Email, LoginAttemptId, TwoFACode, TwoFACodeStore},
-        services::HashmapTwoFACodeStore,
+        services::data_stores::HashmapTwoFACodeStore,
     };
 
     #[tokio::test]

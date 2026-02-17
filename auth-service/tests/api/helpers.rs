@@ -1,8 +1,8 @@
 use auth_service::{
     app_state::{AppState, TwoFACodeStoreType},
     services::{
-        mock_email_client::MockEmailClient, HashmapTwoFACodeStore, HashmapUserStore,
-        HashsetBannedTokenStore,
+        data_stores::{HashmapTwoFACodeStore, HashmapUserStore, HashsetBannedTokenStore},
+        mock_email_client::MockEmailClient,
     },
     utils::constants::test,
     Application,
