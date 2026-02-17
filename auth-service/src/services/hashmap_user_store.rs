@@ -51,6 +51,8 @@ impl UserStore for HashmapUserStore {
 
 #[cfg(test)]
 mod tests {
+    use crate::domain::HashedPassword;
+
     use super::*;
 
     #[tokio::test]
