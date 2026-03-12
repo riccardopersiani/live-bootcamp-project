@@ -6,6 +6,7 @@ use std::env as std_env;
 lazy_static! {
     pub static ref JWT_SECRET: String = set_token();
     pub static ref DATABASE_URL: String = set_db_url();
+    pub static ref REDIS_URL: String = set_redis_url();
 }
 
 fn set_token() -> String {
@@ -26,9 +27,19 @@ fn set_db_url() -> String {
     db_url
 }
 
+fn set_redis_url() -> String {
+    dotenv().ok(); // Load environment variables
+    let redis_url = std_env::var(env::REDIS_URL_ENV_VAR).expect("REDIS_URL must be set.");
+    if redis_url.is_empty() {
+        panic!("REDIS_HOST_NAME must not be empty.");
+    }
+    redis_url
+}
+
 pub mod env {
     pub const JWT_SECRET_ENV_VAR: &str = "JWT_SECRET";
     pub const DATABASE_URL_ENV_VAR: &str = "DATABASE_URL";
+    pub const REDIS_URL_ENV_VAR: &str = "REDIS_URL";
 }
 
 pub const JWT_COOKIE_NAME: &str = "jwt";

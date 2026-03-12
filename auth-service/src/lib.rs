@@ -5,6 +5,7 @@ use axum::{
     serve::Serve,
     Json, Router,
 };
+use redis::{Client, RedisResult};
 use serde::{Deserialize, Serialize};
 use sqlx::{postgres::PgPoolOptions, PgPool};
 use std::error::Error;
@@ -100,4 +101,9 @@ impl IntoResponse for AuthAPIError {
 pub async fn get_postgres_pool(url: &str) -> Result<PgPool, sqlx::Error> {
     // Create a new PostgreSQL connection pool
     PgPoolOptions::new().max_connections(5).connect(url).await
+}
+
+pub fn get_redis_client(url: &str) -> RedisResult<Client> {
+    let redis_url = format!("redis://{}/", url);
+    redis::Client::open(redis_url)
 }

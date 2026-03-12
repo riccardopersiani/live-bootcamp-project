@@ -12,7 +12,7 @@ pub struct AppState {
     pub user_store: UserStoreType,
     pub banned_token_store: BannedTokenStoreType,
     pub two_fa_code_store: TwoFACodeStoreType,
-    pub email_client: EmailClientType, // New!
+    pub email_client: EmailClientType,
 }
 
 impl AppState {
@@ -20,13 +20,13 @@ impl AppState {
         user_store: UserStoreType,
         banned_token_store: BannedTokenStoreType,
         two_fa_code_store: TwoFACodeStoreType,
-        email_client: EmailClientType, // New!
+        email_client: EmailClientType,
     ) -> Self {
         Self {
             user_store,
             banned_token_store,
             two_fa_code_store,
-            email_client, // New!
+            email_client,
         }
     }
 }
