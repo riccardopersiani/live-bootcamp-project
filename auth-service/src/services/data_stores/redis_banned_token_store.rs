@@ -17,7 +17,6 @@ impl RedisBannedTokenStore {
         Self { conn }
     }
 }
-
 #[async_trait::async_trait]
 impl BannedTokenStore for RedisBannedTokenStore {
     async fn add_token(&mut self, token: String) -> Result<(), BannedTokenStoreError> {
@@ -27,14 +26,16 @@ impl BannedTokenStore for RedisBannedTokenStore {
 
         let ttl: u64 = TOKEN_TTL_SECONDS
             .try_into()
-            .map_err(|_| BannedTokenStoreError::UnexpectedError)?;
+            .wrap_err("failed to cast TOKEN_TTL_SECONDS to u64") // New!
+            .map_err(BannedTokenStoreError::UnexpectedError)?; // Updated!
 
         let _: () = self
             .conn
             .write()
             .await
             .set_ex(&token_key, value, ttl)
-            .map_err(|_| BannedTokenStoreError::UnexpectedError)?;
+            .wrap_err("failed to set banned token in Redis") // New!
+            .map_err(BannedTokenStoreError::UnexpectedError)?; // Updated!
 
         Ok(())
     }
@@ -47,7 +48,8 @@ impl BannedTokenStore for RedisBannedTokenStore {
             .write()
             .await
             .exists(&token_key)
-            .map_err(|_| BannedTokenStoreError::UnexpectedError)?;
+            .wrap_err("failed to check if token exists in Redis") // New!
+            .map_err(BannedTokenStoreError::UnexpectedError)?; // Updated!
 
         Ok(is_banned)
     }
