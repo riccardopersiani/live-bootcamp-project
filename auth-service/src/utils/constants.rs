@@ -31,7 +31,7 @@ fn set_redis_url() -> String {
     dotenv().ok(); // Load environment variables
     let redis_url = std_env::var(env::REDIS_URL_ENV_VAR).expect("REDIS_URL must be set.");
     if redis_url.is_empty() {
-        panic!("REDIS_HOST_NAME must not be empty.");
+        panic!("REDIS_URL must not be empty.");
     }
     redis_url
 }

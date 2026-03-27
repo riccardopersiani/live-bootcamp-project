@@ -3,6 +3,9 @@ use uuid::Uuid;
 use crate::domain::Email;
 
 use super::User;
+use color_eyre::eyre::Report;
+use rand::Rng;
+use thiserror::Error;
 
 #[async_trait::async_trait]
 pub trait BannedTokenStore {
@@ -37,12 +40,16 @@ pub trait TwoFACodeStore: Send + Sync {
     ) -> Result<(LoginAttemptId, TwoFACode), TwoFACodeStoreError>;
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, Error)]
 pub enum UserStoreError {
+    #[error("User already exists")]
     UserAlreadyExists,
+    #[error("User not found")]
     UserNotFound,
+    #[error("Invalid credentials")]
     InvalidCredentials,
-    UnexpectedError,
+    #[error("Unexpected error")]
+    UnexpectedError(#[source] Report),
 }
 
 #[derive(Debug, PartialEq)]
