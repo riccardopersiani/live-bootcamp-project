@@ -111,6 +111,7 @@ dependencies = [
  "thiserror",
  "tokio",
  "tower-http",
+ "tracing",
  "uuid",
  "validator",
 ]

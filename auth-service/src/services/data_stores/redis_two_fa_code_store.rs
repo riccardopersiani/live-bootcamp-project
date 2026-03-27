@@ -56,8 +56,8 @@ impl TwoFACodeStore for RedisTwoFACodeStore {
             .write()
             .await
             .del(&key)
-            .map_err(|_| TwoFACodeStoreError::UnexpectedError)?;
-
+            .wrap_err("failed to delete 2FA code from Redis") // New!
+            .map_err(TwoFACodeStoreError::UnexpectedError)?; // Updated!
         Ok(())
     }
 
@@ -70,13 +70,14 @@ impl TwoFACodeStore for RedisTwoFACodeStore {
         match self.conn.write().await.get::<_, String>(&key) {
             Ok(value) => {
                 let data: TwoFATuple = serde_json::from_str(&value)
-                    .map_err(|_| TwoFACodeStoreError::UnexpectedError)?;
+                    .wrap_err("failed to deserialize 2FA tuple") // New!
+                    .map_err(TwoFACodeStoreError::UnexpectedError)?; // Updated!
 
-                let login_attempt_id = LoginAttemptId::parse(data.0)
-                    .map_err(|_| TwoFACodeStoreError::UnexpectedError)?;
+                let login_attempt_id =
+                    LoginAttemptId::parse(data.0).map_err(TwoFACodeStoreError::UnexpectedError)?; // Updated!
 
                 let email_code =
-                    TwoFACode::parse(data.1).map_err(|_| TwoFACodeStoreError::UnexpectedError)?;
+                    TwoFACode::parse(data.1).map_err(TwoFACodeStoreError::UnexpectedError)?; // Updated!
 
                 Ok((login_attempt_id, email_code))
             }

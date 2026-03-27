@@ -1,8 +1,6 @@
-use color_eyre::eyre::{eyre, Report};
+use color_eyre::eyre::{eyre, Context, Report, Result};
 use rand::Rng;
 use thiserror::Error;
-
-use crate::domain::error;
 
 use super::{Email, Password, User};
 
@@ -72,9 +70,9 @@ impl PartialEq for TwoFACodeStoreError {
 pub struct LoginAttemptId(String);
 
 impl LoginAttemptId {
-    pub fn parse(id: String) -> Result<Self, String> {
-        let parsed_id =
-            uuid::Uuid::parse_str(&id).map_err(|_| "Invalid login attempt id".to_owned())?;
+    pub fn parse(id: String) -> Result<Self> {
+        // Updated!
+        let parsed_id = uuid::Uuid::parse_str(&id).wrap_err("Invalid login attempt id")?; // Updated!
         Ok(Self(parsed_id.to_string()))
     }
 }
@@ -95,15 +93,14 @@ impl AsRef<str> for LoginAttemptId {
 pub struct TwoFACode(String);
 
 impl TwoFACode {
-    pub fn parse(code: String) -> Result<Self, String> {
-        let code_as_u32 = code
-            .parse::<u32>()
-            .map_err(|_| "Invalid 2FA code".to_owned())?;
+    pub fn parse(code: String) -> Result<Self> {
+        // Updated!
+        let code_as_u32 = code.parse::<u32>().wrap_err("Invalid 2FA code")?; // Updated!
 
         if (100_000..=999_999).contains(&code_as_u32) {
             Ok(Self(code))
         } else {
-            Err("Invalid 2FA code".to_owned())
+            Err(eyre!("Invalid 2FA code")) // Updated!
         }
     }
 }
