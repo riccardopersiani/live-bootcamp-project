@@ -7,6 +7,7 @@ use crate::{
     utils::{auth::validate_token, constants::JWT_COOKIE_NAME},
 };
 
+#[tracing::instrument(name = "Logout", skip_all)]
 pub async fn logout(
     State(state): State<AppState>,
     jar: CookieJar,
