@@ -1,5 +1,6 @@
 use std::sync::Arc;
 
+use color_eyre::eyre::Context;
 use redis::{Commands, Connection};
 use tokio::sync::RwLock;
 
@@ -19,6 +20,7 @@ impl RedisBannedTokenStore {
 }
 #[async_trait::async_trait]
 impl BannedTokenStore for RedisBannedTokenStore {
+    #[tracing::instrument(name = "Add Token", skip_all)]
     async fn add_token(&mut self, token: String) -> Result<(), BannedTokenStoreError> {
         let token_key = get_key(token.as_str());
 
@@ -39,7 +41,7 @@ impl BannedTokenStore for RedisBannedTokenStore {
 
         Ok(())
     }
-
+    #[tracing::instrument(name = "Contains Token", skip_all)]
     async fn contains_token(&self, token: &str) -> Result<bool, BannedTokenStoreError> {
         let token_key = get_key(token);
 
