@@ -27,6 +27,9 @@ test_helpers = { git = "https://github.com/letsgetrusty/test-helpers.git" }
 color-eyre = "0.6.5"
 thiserror = "2.0.18"
 tracing = "0.1.44"
+secrecy = { version = "0.10.3", features = ["serde"] }
+quickcheck = "0.9.2"
+quickcheck_macros = "0.9.1"
 
 [dev-dependencies]
 reqwest = { version = "0.11.26", default-features = false, features = ["json", "cookies"] }

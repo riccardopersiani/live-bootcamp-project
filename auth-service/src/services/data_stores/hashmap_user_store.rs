@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use crate::domain::{Email, Password, User, UserStore, UserStoreError};
+use crate::domain::{Email, HashedPassword, User, UserStore, UserStoreError};
 
 #[derive(Default)]
 pub struct HashmapUserStore {
@@ -27,7 +27,7 @@ impl UserStore for HashmapUserStore {
     async fn validate_user(
         &self,
         email: &Email,
-        password: &Password,
+        password: &HashedPassword,
     ) -> Result<(), UserStoreError> {
         match self.users.get(email) {
             Some(user) => {
@@ -51,7 +51,7 @@ mod tests {
         let mut user_store = HashmapUserStore::default();
         let user = User {
             email: Email::parse("test@example.com".to_owned()).unwrap(),
-            password: Password::parse("password".to_owned()).unwrap(),
+            password: HashedPassword::parse("password".to_owned().into()).unwrap(),
             requires_2fa: false,
         };
 
@@ -71,7 +71,7 @@ mod tests {
 
         let user = User {
             email: email.clone(),
-            password: Password::parse("password".to_owned()).unwrap(),
+            password: HashedPassword::parse("password".to_owned().into()).unwrap(),
             requires_2fa: false,
         };
 
@@ -92,7 +92,7 @@ mod tests {
     async fn test_validate_user() {
         let mut user_store = HashmapUserStore::default();
         let email = Email::parse("test@example.com".to_owned()).unwrap();
-        let password = Password::parse("password".to_owned()).unwrap();
+        let password = HashedPassword::parse("password".to_owned().into()).unwrap();
 
         let user = User {
             email: email.clone(),
@@ -106,7 +106,7 @@ mod tests {
         assert_eq!(result, Ok(()));
 
         // Test validating a user that exists with incorrect password
-        let wrong_password = Password::parse("wrongpassword".to_owned()).unwrap();
+        let wrong_password = HashedPassword::parse("wrongpassword".to_owned().into()).unwrap();
         let result = user_store.validate_user(&email, &wrong_password).await;
         assert_eq!(result, Err(UserStoreError::InvalidCredentials));
 

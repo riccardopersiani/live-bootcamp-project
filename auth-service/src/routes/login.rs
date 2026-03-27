@@ -113,10 +113,15 @@ async fn handle_no_2fa(
     )
 }
 
+//...
+use secrecy::SecretString;
+
+//...
+
 #[derive(Deserialize)]
 pub struct LoginRequest {
-    email: String,
-    password: String,
+    email: SecretString,    // update
+    password: SecretString, // update
 }
 
 #[derive(Debug, Serialize)]

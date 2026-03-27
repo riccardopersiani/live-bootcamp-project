@@ -34,10 +34,15 @@ pub async fn signup(
     Ok((StatusCode::CREATED, response))
 }
 
+//...
+use secrecy::SecretString;
+
+//...
+
 #[derive(Deserialize)]
 pub struct SignupRequest {
-    pub email: String,
-    pub password: String,
+    pub email: SecretString,
+    pub password: SecretString,
     #[serde(rename = "requires2FA")]
     pub requires_2fa: bool,
 }
