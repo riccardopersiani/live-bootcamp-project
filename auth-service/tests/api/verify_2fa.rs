@@ -1,80 +1,16 @@
-use auth_service::{domain::Email, routes::TwoFactorAuthResponse};
+use auth_service::{
+    domain::{Email, LoginAttemptId, TwoFACode},
+    routes::TwoFactorAuthResponse,
+    utils::constants::JWT_COOKIE_NAME,
+    ErrorResponse,
+};
+use test_helpers::api_test;
 
-use crate::helpers::TestApp;
+use crate::helpers::{get_random_email, TestApp};
 
-#[tokio::test]
-async fn should_return_422_if_malformed_input() {
-    let app = TestApp::new().await;
-    let random_email = TestApp::get_random_email();
-
-    let test_cases = [
-        serde_json::json!({
-            "loginAttemptId": "23",
-            "2FACode": "23",
-        }),
-        serde_json::json!({
-            "email": random_email,
-            "2FACode": "23",
-        }),
-        serde_json::json!({
-            "email": random_email,
-            "loginAttemptId": "23",
-        }),
-    ];
-    for test_case in test_cases.iter() {
-        let response = app.post_verify_2fa(test_case).await;
-        assert_eq!(
-            response.status().as_u16(),
-            422,
-            "Failed for input: {:?}",
-            test_case
-        );
-    }
-}
-
-#[tokio::test]
-async fn should_return_400_if_invalid_input() {
-    let app = TestApp::new().await;
-    let random_email = TestApp::get_random_email();
-
-    let test_cases = [
-        serde_json::json!({
-            "email": "",
-            "loginAttemptId": "23",
-            "2FACode": "23",
-        }),
-        serde_json::json!({
-            "email": random_email,
-            "loginAttemptId": "",
-            "2FACode": "",
-        }),
-        serde_json::json!({
-            "email": random_email,
-            "loginAttemptId": "",
-            "2FACode": "12",
-        }),
-        serde_json::json!({
-            "email": random_email,
-            "loginAttemptId": "12",
-            "2FACode": "",
-        }),
-    ];
-    for test_case in test_cases.iter() {
-        let response = app.post_verify_2fa(test_case).await;
-        assert_eq!(
-            response.status().as_u16(),
-            400,
-            "Failed for input: {:?}",
-            test_case
-        );
-    }
-}
-
-#[tokio::test]
-async fn should_return_401_if_incorrect_credentials() {
-    let app = TestApp::new().await;
-
-    let random_email = TestApp::get_random_email();
+#[api_test]
+async fn should_return_200_if_correct_code() {
+    let random_email = get_random_email();
 
     let signup_body = serde_json::json!({
         "email": random_email,
@@ -88,10 +24,126 @@ async fn should_return_401_if_incorrect_credentials() {
 
     let login_body = serde_json::json!({
         "email": random_email,
-        "password": "password123",
+        "password": "password123"
     });
 
     let response = app.post_login(&login_body).await;
+
+    assert_eq!(response.status().as_u16(), 206);
+
+    let response_body = response
+        .json::<TwoFactorAuthResponse>()
+        .await
+        .expect("Could not deserialize response body to TwoFactorAuthResponse");
+
+    assert_eq!(response_body.message, "2FA required".to_owned());
+    assert!(!response_body.login_attempt_id.is_empty());
+
+    let login_attempt_id = response_body.login_attempt_id;
+
+    let code_tuple = app
+        .two_fa_code_store
+        .read()
+        .await
+        .get_code(&Email::parse(random_email.clone()).unwrap())
+        .await
+        .unwrap();
+
+    let code = code_tuple.1.as_ref();
+
+    let request_body = serde_json::json!({
+        "email": random_email,
+        "loginAttemptId": login_attempt_id,
+        "2FACode": code
+    });
+
+    let response = app.post_verify_2fa(&request_body).await;
+
+    assert_eq!(response.status().as_u16(), 200);
+
+    let auth_cookie = response
+        .cookies()
+        .find(|cookie| cookie.name() == JWT_COOKIE_NAME)
+        .expect("No auth cookie found");
+
+    assert!(!auth_cookie.value().is_empty());
+}
+
+#[api_test]
+async fn should_return_400_if_invalid_input() {
+    let random_email = get_random_email();
+    let login_attempt_id = LoginAttemptId::default().as_ref().to_owned();
+    let two_fa_code = TwoFACode::default().as_ref().to_owned();
+
+    let test_cases = vec![
+        (
+            "invalid_email",
+            login_attempt_id.as_str(),
+            two_fa_code.as_str(),
+        ),
+        (
+            random_email.as_str(),
+            "invalid_login_attempt_id",
+            two_fa_code.as_str(),
+        ),
+        (
+            random_email.as_str(),
+            login_attempt_id.as_str(),
+            "invalid_two_fa_code",
+        ),
+        ("", "", ""),
+    ];
+
+    for (email, login_attempt_id, code) in test_cases {
+        let request_body = serde_json::json!({
+            "email": email,
+            "loginAttemptId": login_attempt_id,
+            "2FACode": code
+        });
+
+        let response = app.post_verify_2fa(&request_body).await;
+
+        assert_eq!(
+            response.status().as_u16(),
+            400,
+            "Failed for input: {:?}",
+            request_body
+        );
+
+        assert_eq!(
+            response
+                .json::<ErrorResponse>()
+                .await
+                .expect("Could not deserialize response body to ErrorResponse")
+                .error,
+            "Invalid credentials".to_owned()
+        );
+    }
+}
+
+#[api_test]
+async fn should_return_401_if_incorrect_credentials() {
+    let random_email = get_random_email();
+
+    let signup_body = serde_json::json!({
+        "email": random_email,
+        "password": "password123",
+        "requires2FA": true
+    });
+
+    let response = app.post_signup(&signup_body).await;
+
+    assert_eq!(response.status().as_u16(), 201);
+
+    // --------------------------
+
+    let login_body = serde_json::json!({
+        "email": random_email,
+        "password": "password123"
+    });
+
+    let response = app.post_login(&login_body).await;
+
     assert_eq!(response.status().as_u16(), 206);
 
     let response_body = response
@@ -114,21 +166,60 @@ async fn should_return_401_if_incorrect_credentials() {
 
     let two_fa_code = code_tuple.1.as_ref();
 
-    let verify_2fa_body = serde_json::json!({
-        "email": "a@a.incorrect",
-        "loginAttemptId": login_attempt_id.as_str(),
-        "2FACode": two_fa_code
-    });
+    // --------------------------
 
-    let response = app.post_verify_2fa(&verify_2fa_body).await;
-    assert_eq!(response.status().as_u16(), 401);
+    let incorrect_email = get_random_email();
+    let incorrect_login_attempt_id = LoginAttemptId::default().as_ref().to_owned();
+    let incorrect_two_fa_code = TwoFACode::default().as_ref().to_owned();
+
+    let test_cases = vec![
+        (
+            incorrect_email.as_str(),
+            login_attempt_id.as_str(),
+            two_fa_code,
+        ),
+        (
+            random_email.as_str(),
+            incorrect_login_attempt_id.as_str(),
+            two_fa_code,
+        ),
+        (
+            random_email.as_str(),
+            login_attempt_id.as_str(),
+            incorrect_two_fa_code.as_ref(),
+        ),
+    ];
+
+    for (email, login_attempt_id, code) in test_cases {
+        let request_body = serde_json::json!({
+            "email": email,
+            "loginAttemptId": login_attempt_id,
+            "2FACode": code
+        });
+
+        let response = app.post_verify_2fa(&request_body).await;
+
+        assert_eq!(
+            response.status().as_u16(),
+            401,
+            "Failed for input: {:?}",
+            request_body
+        );
+
+        assert_eq!(
+            response
+                .json::<ErrorResponse>()
+                .await
+                .expect("Could not deserialize response body to ErrorResponse")
+                .error,
+            "Incorrect credentials".to_owned()
+        );
+    }
 }
 
-#[tokio::test]
+#[api_test]
 async fn should_return_401_if_old_code() {
-    let app = TestApp::new().await;
-
-    let random_email = TestApp::get_random_email();
+    let random_email = get_random_email();
 
     let signup_body = serde_json::json!({
         "email": random_email,
@@ -140,34 +231,15 @@ async fn should_return_401_if_old_code() {
 
     assert_eq!(response.status().as_u16(), 201);
 
+    // First login call
+
     let login_body = serde_json::json!({
         "email": random_email,
-        "password": "password123",
+        "password": "password123"
     });
 
     let response = app.post_login(&login_body).await;
-    assert_eq!(response.status().as_u16(), 206);
 
-    let response_body = response
-        .json::<TwoFactorAuthResponse>()
-        .await
-        .expect("Could not deserialize response body to TwoFactorAuthResponse");
-
-    assert_eq!(response_body.message, "2FA required".to_owned());
-    assert!(!response_body.login_attempt_id.is_empty());
-
-    let code_tuple = app
-        .two_fa_code_store
-        .read()
-        .await
-        .get_code(&Email::parse(random_email.clone()).unwrap())
-        .await
-        .unwrap();
-
-    let two_fa_code_old = code_tuple.1.as_ref();
-
-    // second login and verify
-    let response = app.post_login(&login_body).await;
     assert_eq!(response.status().as_u16(), 206);
 
     let response_body = response
@@ -188,79 +260,30 @@ async fn should_return_401_if_old_code() {
         .await
         .unwrap();
 
-    let two_fa_code_new = code_tuple.1.as_ref();
+    let code = code_tuple.1.as_ref();
 
-    assert!(two_fa_code_new != two_fa_code_old);
+    // Second login call
 
-    let verify_2fa_body = serde_json::json!({
+    let response = app.post_login(&login_body).await;
+
+    assert_eq!(response.status().as_u16(), 206);
+
+    // 2FA attempt with old login_attempt_id and code
+
+    let request_body = serde_json::json!({
         "email": random_email,
-        "loginAttemptId": login_attempt_id.as_str(),
-        "2FACode": two_fa_code_old
+        "loginAttemptId": login_attempt_id,
+        "2FACode": code
     });
 
-    let response = app.post_verify_2fa(&verify_2fa_body).await;
+    let response = app.post_verify_2fa(&request_body).await;
+
     assert_eq!(response.status().as_u16(), 401);
 }
 
-#[tokio::test]
-async fn should_return_200_if_correct_code() {
-    let app = TestApp::new().await;
-
-    let random_email = TestApp::get_random_email();
-
-    let signup_body = serde_json::json!({
-        "email": random_email,
-        "password": "password123",
-        "requires2FA": true
-    });
-
-    let response = app.post_signup(&signup_body).await;
-
-    assert_eq!(response.status().as_u16(), 201);
-
-    let login_body = serde_json::json!({
-        "email": random_email,
-        "password": "password123",
-    });
-
-    let response = app.post_login(&login_body).await;
-    assert_eq!(response.status().as_u16(), 206);
-
-    let response_body = response
-        .json::<TwoFactorAuthResponse>()
-        .await
-        .expect("Could not deserialize response body to TwoFactorAuthResponse");
-
-    assert_eq!(response_body.message, "2FA required".to_owned());
-    assert!(!response_body.login_attempt_id.is_empty());
-
-    let login_attempt_id = response_body.login_attempt_id;
-
-    let code_tuple = app
-        .two_fa_code_store
-        .read()
-        .await
-        .get_code(&Email::parse(random_email.clone()).unwrap())
-        .await
-        .unwrap();
-
-    let two_fa_code_old = code_tuple.1.as_ref();
-
-    let verify_2fa_body = serde_json::json!({
-        "email": random_email,
-        "loginAttemptId": login_attempt_id.as_str(),
-        "2FACode": two_fa_code_old
-    });
-
-    let response = app.post_verify_2fa(&verify_2fa_body).await;
-    assert_eq!(response.status().as_u16(), 200);
-}
-
-#[tokio::test]
+#[api_test]
 async fn should_return_401_if_same_code_twice() {
-    let app = TestApp::new().await;
-
-    let random_email = TestApp::get_random_email();
+    let random_email = get_random_email();
 
     let signup_body = serde_json::json!({
         "email": random_email,
@@ -274,10 +297,11 @@ async fn should_return_401_if_same_code_twice() {
 
     let login_body = serde_json::json!({
         "email": random_email,
-        "password": "password123",
+        "password": "password123"
     });
 
     let response = app.post_login(&login_body).await;
+
     assert_eq!(response.status().as_u16(), 206);
 
     let response_body = response
@@ -298,16 +322,68 @@ async fn should_return_401_if_same_code_twice() {
         .await
         .unwrap();
 
-    let two_fa_code_old = code_tuple.1.as_ref();
+    let code = code_tuple.1.as_ref();
 
-    let verify_2fa_body = serde_json::json!({
+    let request_body = serde_json::json!({
         "email": random_email,
-        "loginAttemptId": login_attempt_id.as_str(),
-        "2FACode": two_fa_code_old
+        "loginAttemptId": login_attempt_id,
+        "2FACode": code
     });
 
-    let response = app.post_verify_2fa(&verify_2fa_body).await;
+    let response = app.post_verify_2fa(&request_body).await;
+
     assert_eq!(response.status().as_u16(), 200);
-    let response = app.post_verify_2fa(&verify_2fa_body).await;
+
+    let auth_cookie = response
+        .cookies()
+        .find(|cookie| cookie.name() == JWT_COOKIE_NAME)
+        .expect("No auth cookie found");
+
+    assert!(!auth_cookie.value().is_empty());
+
+    let response = app.post_verify_2fa(&request_body).await;
+
     assert_eq!(response.status().as_u16(), 401);
+}
+
+#[api_test]
+async fn should_return_422_if_malformed_input() {
+    let random_email = get_random_email();
+    let login_attempt_id = LoginAttemptId::default().as_ref().to_owned();
+
+    let test_cases = [
+        serde_json::json!({
+            "2FACode": "123456",
+        }),
+        serde_json::json!({
+            "email": random_email,
+        }),
+        serde_json::json!({
+            "loginAttemptId": login_attempt_id,
+        }),
+        serde_json::json!({
+            "2FACode": "123456",
+            "email": random_email,
+        }),
+        serde_json::json!({
+            "2FACode": "123456",
+            "loginAttemptId": login_attempt_id,
+        }),
+        serde_json::json!({
+            "email": random_email,
+            "loginAttemptId": login_attempt_id,
+        }),
+        serde_json::json!({}),
+    ];
+
+    for test_case in test_cases {
+        let response = app.post_verify_2fa(&test_case).await;
+
+        assert_eq!(
+            response.status().as_u16(),
+            422,
+            "Failed for input: {:?}",
+            test_case
+        );
+    }
 }

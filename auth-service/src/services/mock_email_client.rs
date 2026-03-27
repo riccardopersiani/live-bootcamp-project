@@ -1,7 +1,5 @@
 use crate::domain::{Email, EmailClient};
 
-#[derive(Debug, Default)]
-
 pub struct MockEmailClient;
 
 #[async_trait::async_trait]
@@ -12,7 +10,6 @@ impl EmailClient for MockEmailClient {
         subject: &str,
         content: &str,
     ) -> Result<(), String> {
-        // Our mock email client will simply log the recipient, subject, and content to standard output
         println!(
             "Sending email to {} with subject: {} and content: {}",
             recipient.as_ref(),

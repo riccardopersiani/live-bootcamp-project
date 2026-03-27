@@ -1,70 +1,19 @@
 use auth_service::{routes::SignupResponse, ErrorResponse};
+use test_helpers::api_test;
 
-use crate::helpers::TestApp;
+use crate::helpers::{get_random_email, TestApp};
 
-#[tokio::test]
-async fn signup_returns_auth_ui() {
-    let app = TestApp::new().await;
-
-    let random_email = TestApp::get_random_email();
-
-    let body = serde_json::json!({
-        "email": random_email,
-        "password": "password123",
-        "requires2FA": true
-    });
-
-    let response = app.post_signup(&body).await;
-
-    assert_eq!(response.status().as_u16(), 201);
-}
-
-#[tokio::test]
-async fn should_return_422_if_malformed_input() {
-    let app = TestApp::new().await;
-
-    let random_email = TestApp::get_random_email(); // Call helper method to generate email
-
-    let test_cases = [
-        serde_json::json!({
-            "password": "password123",
-            "requires2FA": true
-        }),
-        serde_json::json!({
-            "email": random_email,
-            "requires2FA": true
-        }),
-        serde_json::json!({
-            "email": random_email,
-            "password": "password123",
-        }),
-    ];
-
-    for test_case in test_cases.iter() {
-        let response = app.post_signup(test_case).await; // call `post_signup`
-        assert_eq!(
-            response.status().as_u16(),
-            422,
-            "Failed for input: {:?}",
-            test_case
-        );
-    }
-}
-
-#[tokio::test]
+#[api_test]
 async fn should_return_201_if_valid_input() {
-    //...
-    let app = TestApp::new().await;
+    let random_email = get_random_email();
 
-    let random_email = TestApp::get_random_email();
-
-    let body = serde_json::json!({
+    let signup_body = serde_json::json!({
         "email": random_email,
         "password": "password123",
         "requires2FA": true
     });
 
-    let response = app.post_signup(&body).await;
+    let response = app.post_signup(&signup_body).await;
 
     assert_eq!(response.status().as_u16(), 201);
 
@@ -72,7 +21,6 @@ async fn should_return_201_if_valid_input() {
         message: "User created successfully!".to_owned(),
     };
 
-    // Assert that we are getting the correct response body!
     assert_eq!(
         response
             .json::<SignupResponse>()
@@ -82,41 +30,42 @@ async fn should_return_201_if_valid_input() {
     );
 }
 
-#[tokio::test]
+#[api_test]
 async fn should_return_400_if_invalid_input() {
-    // The signup route should return a 400 HTTP status code if an invalid input is sent.
-    let app = TestApp::new().await;
+    let random_email = get_random_email();
 
-    let random_email = TestApp::get_random_email(); // Call helper method to generate email
-
-    let test_cases = [
-        // - The email is empty or does not contain '@'
-        serde_json::json!({
-            "email": "emailtest.com",
-            "password": "password123",
-            "requires2FA": true
-        }),
-        serde_json::json!({
-        // - The password is less than 8 characters
-            "email": random_email,
-            "password": "1234567",
-            "requires2FA": true
-        }),
+    let input = [
         serde_json::json!({
             "email": "",
             "password": "password123",
             "requires2FA": true
         }),
+        serde_json::json!({
+            "email": random_email,
+            "password": "",
+            "requires2FA": true
+        }),
+        serde_json::json!({
+            "email": "",
+            "password": "",
+            "requires2FA": true
+        }),
+        serde_json::json!({
+            "email": "invalid_email",
+            "password": "password123",
+            "requires2FA": true
+        }),
+        serde_json::json!({
+            "email": random_email,
+            "password": "invalid",
+            "requires2FA": true
+        }),
     ];
 
-    for test_case in test_cases.iter() {
-        let response = app.post_signup(test_case).await; // call `post_signup`
-        assert_eq!(
-            response.status().as_u16(),
-            400,
-            "Failed for input: {:?}",
-            test_case
-        );
+    for i in input.iter() {
+        let response = app.post_signup(i).await;
+        assert_eq!(response.status().as_u16(), 400, "Failed for input: {:?}", i);
+
         assert_eq!(
             response
                 .json::<ErrorResponse>()
@@ -128,32 +77,66 @@ async fn should_return_400_if_invalid_input() {
     }
 }
 
-#[tokio::test]
+#[api_test]
 async fn should_return_409_if_email_already_exists() {
-    // Call the signup route twice. The second request should fail with a 409 HTTP status code
-    let app = TestApp::new().await;
+    let random_email = get_random_email();
 
-    let random_email = TestApp::get_random_email();
-
-    let body = serde_json::json!({
+    let signup_body = serde_json::json!({
         "email": random_email,
         "password": "password123",
         "requires2FA": true
     });
 
-    let response = app.post_signup(&body).await;
+    let response = app.post_signup(&signup_body).await;
+
     assert_eq!(response.status().as_u16(), 201);
 
-    let response2 = app.post_signup(&body).await;
+    let response = app.post_signup(&signup_body).await;
 
-    assert_eq!(response2.status().as_u16(), 409);
+    assert_eq!(response.status().as_u16(), 409);
 
     assert_eq!(
-        response2
+        response
             .json::<ErrorResponse>()
             .await
             .expect("Could not deserialize response body to ErrorResponse")
             .error,
         "User already exists".to_owned()
     );
+}
+
+#[api_test]
+async fn should_return_422_if_malformed_input() {
+    let random_email = get_random_email();
+
+    let test_cases = [
+        serde_json::json!({
+            "password": "password123",
+            "requires2FA": true
+        }),
+        serde_json::json!({
+            "email": random_email,
+            "requires2FA": true
+        }),
+        serde_json::json!({
+            "email": random_email,
+            "password": "password123",
+        }),
+        serde_json::json!({
+            "email": random_email,
+            "password": "password123",
+            "requires2FA": "true"
+        }),
+        serde_json::json!({}),
+    ];
+
+    for test_case in test_cases.iter() {
+        let response = app.post_signup(test_case).await;
+        assert_eq!(
+            response.status().as_u16(),
+            422,
+            "Failed for input: {:?}",
+            test_case
+        );
+    }
 }

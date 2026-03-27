@@ -1,6 +1,9 @@
 use std::collections::HashMap;
 
-use crate::domain::{Email, LoginAttemptId, TwoFACode, TwoFACodeStore, TwoFACodeStoreError};
+use crate::domain::{
+    data_stores::{LoginAttemptId, TwoFACode, TwoFACodeStore, TwoFACodeStoreError},
+    email::Email,
+};
 
 #[derive(Default)]
 pub struct HashmapTwoFACodeStore {
@@ -18,108 +21,87 @@ impl TwoFACodeStore for HashmapTwoFACodeStore {
         self.codes.insert(email, (login_attempt_id, code));
         Ok(())
     }
+
     async fn remove_code(&mut self, email: &Email) -> Result<(), TwoFACodeStoreError> {
-        self.codes.remove(email);
-        Ok(())
+        match self.codes.remove(email) {
+            Some(_) => Ok(()),
+            None => Err(TwoFACodeStoreError::LoginAttemptIdNotFound),
+        }
     }
+
     async fn get_code(
         &self,
         email: &Email,
     ) -> Result<(LoginAttemptId, TwoFACode), TwoFACodeStoreError> {
-        let response = self.codes.get(email);
-        match response {
-            Some(x) => Ok((x.0.clone(), x.1.clone())),
-            None => return Err(TwoFACodeStoreError::LoginAttemptIdNotFound),
+        match self.codes.get(email) {
+            Some(value) => Ok(value.clone()),
+            None => Err(TwoFACodeStoreError::LoginAttemptIdNotFound),
         }
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use crate::{
-        domain::{Email, LoginAttemptId, TwoFACode, TwoFACodeStore},
-        services::data_stores::HashmapTwoFACodeStore,
-    };
-
+    use super::*;
     #[tokio::test]
-    pub async fn test_add_code() {
-        let mut hashmap = HashmapTwoFACodeStore::default();
-        let email = Email::parse("test@mail.com".to_string()).unwrap();
-        let code = TwoFACode::default();
+    async fn test_add_code() {
+        let mut store = HashmapTwoFACodeStore::default();
+        let email = Email::parse("test@example.com".to_string()).unwrap();
         let login_attempt_id = LoginAttemptId::default();
+        let code = TwoFACode::default();
 
-        hashmap
+        let result = store
             .add_code(email.clone(), login_attempt_id.clone(), code.clone())
-            .await
-            .expect("Failed to add code");
-        ();
+            .await;
 
-        let maybe_result = hashmap.codes.get(&email);
-        match maybe_result {
-            Some(result) => {
-                assert_eq!(result.0, login_attempt_id);
-                assert_eq!(result.1, code);
-            }
-            None => panic!("code is not added"),
-        }
+        assert!(result.is_ok());
+        assert_eq!(store.codes.get(&email), Some(&(login_attempt_id, code)));
     }
+
     #[tokio::test]
-    pub async fn test_get_code() {
-        let mut hashmap = HashmapTwoFACodeStore::default();
-        let email = Email::parse("test@mail.com".to_string()).unwrap();
-        let code = TwoFACode::default();
+    async fn test_remove_code() {
+        let mut store = HashmapTwoFACodeStore::default();
+        let email = Email::parse("test@example.com".to_string()).unwrap();
         let login_attempt_id = LoginAttemptId::default();
+        let code = TwoFACode::default();
 
-        hashmap
-            .add_code(email.clone(), login_attempt_id.clone(), code.clone())
-            .await
-            .expect("Failed to add code");
-        ();
+        store
+            .codes
+            .insert(email.clone(), (login_attempt_id.clone(), code.clone()));
 
-        let get_result = hashmap.get_code(&email).await.expect("Failed to get code");
+        let result = store.remove_code(&email).await;
 
-        assert_eq!(get_result.0, login_attempt_id);
-        assert_eq!(get_result.1, code);
-
-        let maybe_result = hashmap.codes.get(&email);
-        match maybe_result {
-            Some(result) => {
-                assert_eq!(result.0, get_result.0);
-                assert_eq!(result.1, get_result.1);
-            }
-            None => panic!("code is not get"),
-        }
+        assert!(result.is_ok());
+        assert_eq!(store.codes.get(&email), None);
     }
+
     #[tokio::test]
-    pub async fn test_remove_code() {
-        let mut hashmap = HashmapTwoFACodeStore::default();
-        let email = Email::parse("test@mail.com".to_string()).unwrap();
-        let code = TwoFACode::default();
+    async fn test_get_code() {
+        let mut store = HashmapTwoFACodeStore::default();
+        let email = Email::parse("test@example.com".to_string()).unwrap();
         let login_attempt_id = LoginAttemptId::default();
+        let code = TwoFACode::default();
+        store
+            .codes
+            .insert(email.clone(), (login_attempt_id.clone(), code.clone()));
 
-        hashmap
-            .add_code(email.clone(), login_attempt_id.clone(), code.clone())
-            .await
-            .expect("Failed to add code");
-        ();
+        let result = store.get_code(&email).await;
 
-        let result = hashmap.get_code(&email).await.expect("Failed to get code");
+        assert!(result.is_ok());
+        assert_eq!(result.unwrap(), (login_attempt_id, code));
+    }
 
-        assert_eq!(result.0, login_attempt_id);
-        assert_eq!(result.1, code);
+    #[tokio::test]
+    async fn test_get_code_not_found() {
+        let store = HashmapTwoFACodeStore::default();
+        let email = Email::parse("test@example.com".to_string()).unwrap();
 
-        hashmap
-            .remove_code(&email)
-            .await
-            .expect("Failed to remove code");
+        let result = store.get_code(&email).await;
 
-        let maybe_result = hashmap.codes.get(&email);
-
-        match maybe_result {
-            Some(_) => {
-                panic!("code is not removed")
-            }
-            None => {}
-        }
+        assert!(result.is_err());
+        assert_eq!(
+            result.unwrap_err(),
+            TwoFACodeStoreError::LoginAttemptIdNotFound
+        );
     }
 }

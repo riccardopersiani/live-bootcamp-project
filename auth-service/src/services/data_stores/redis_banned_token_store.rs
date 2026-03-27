@@ -20,30 +20,27 @@ impl RedisBannedTokenStore {
 
 #[async_trait::async_trait]
 impl BannedTokenStore for RedisBannedTokenStore {
-    async fn store_token(&mut self, token: String) -> Result<(), BannedTokenStoreError> {
-        // 1. Create a new key using the get_key helper function.
+    async fn add_token(&mut self, token: String) -> Result<(), BannedTokenStoreError> {
         let token_key = get_key(token.as_str());
-        // The value should simply be a `true` (boolean value).
-        let value = true;
-        // The expiration time should be set to TOKEN_TTL_SECONDS.
-        let seconds = TOKEN_TTL_SECONDS;
 
-        // 2. Call the set_ex command on the Redis connection to set a new key/value pair with an expiration time (TTL).
+        let value = true;
+
+        let ttl: u64 = TOKEN_TTL_SECONDS
+            .try_into()
+            .map_err(|_| BannedTokenStoreError::UnexpectedError)?;
+
         let _: () = self
             .conn
             .write()
             .await
-            // NOTE: The TTL is expected to be a u64 so you will have to cast TOKEN_TTL_SECONDS to a u64.
-            .set_ex(&token_key, value, seconds.try_into().unwrap())
-            // Return BannedTokenStoreError::UnexpectedError if casting fails or the call to set_ex fails.
+            .set_ex(&token_key, value, ttl)
             .map_err(|_| BannedTokenStoreError::UnexpectedError)?;
 
         Ok(())
     }
 
-    async fn check_if_exists(&self, token: String) -> Result<bool, BannedTokenStoreError> {
-        // Check if the token exists by calling the exists method on the Redis connection
-        let token_key = get_key(&token);
+    async fn contains_token(&self, token: &str) -> Result<bool, BannedTokenStoreError> {
+        let token_key = get_key(token);
 
         let is_banned: bool = self
             .conn
@@ -56,7 +53,6 @@ impl BannedTokenStore for RedisBannedTokenStore {
     }
 }
 
-// We are using a key prefix to prevent collisions and organize data!
 const BANNED_TOKEN_KEY_PREFIX: &str = "banned_token:";
 
 fn get_key(token: &str) -> String {

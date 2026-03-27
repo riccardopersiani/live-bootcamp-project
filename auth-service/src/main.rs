@@ -1,4 +1,6 @@
+use sqlx::PgPool;
 use std::sync::Arc;
+use tokio::sync::RwLock;
 
 use auth_service::{
     app_state::AppState,
@@ -7,20 +9,12 @@ use auth_service::{
         data_stores::{PostgresUserStore, RedisBannedTokenStore, RedisTwoFACodeStore},
         mock_email_client::MockEmailClient,
     },
-    utils::{
-        constants::{prod, DATABASE_URL, REDIS_URL},
-        tracing::init_tracing,
-    },
+    utils::constants::{prod, DATABASE_URL, REDIS_HOST_NAME},
     Application,
 };
-use sqlx::PgPool;
-use tokio::sync::RwLock;
 
 #[tokio::main]
 async fn main() {
-    color_eyre::install().expect("Failed to install color_eyre");
-    init_tracing();
-
     let pg_pool = configure_postgresql().await;
     let redis_connection = Arc::new(RwLock::new(configure_redis()));
 
@@ -30,7 +24,7 @@ async fn main() {
     )));
     let two_fa_code_store = Arc::new(RwLock::new(RedisTwoFACodeStore::new(redis_connection)));
 
-    let email_client = Arc::new(RwLock::new(MockEmailClient::default()));
+    let email_client = Arc::new(MockEmailClient);
 
     let app_state = AppState::new(
         user_store,
@@ -47,8 +41,7 @@ async fn main() {
 }
 
 async fn configure_postgresql() -> PgPool {
-    let pg_pool = // Create a new connection pool and return it
-    get_postgres_pool(&DATABASE_URL)
+    let pg_pool = get_postgres_pool(&DATABASE_URL)
         .await
         .expect("Failed to create Postgres connection pool!");
 
@@ -61,7 +54,7 @@ async fn configure_postgresql() -> PgPool {
 }
 
 fn configure_redis() -> redis::Connection {
-    get_redis_client(&REDIS_URL.to_owned())
+    get_redis_client(REDIS_HOST_NAME.to_owned())
         .expect("Failed to get Redis client")
         .get_connection()
         .expect("Failed to get Redis connection")

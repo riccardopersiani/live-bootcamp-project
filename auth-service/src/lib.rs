@@ -1,3 +1,6 @@
+use std::error::Error;
+
+use app_state::AppState;
 use axum::{
     http::{Method, StatusCode},
     response::{IntoResponse, Response},
@@ -5,12 +8,12 @@ use axum::{
     serve::Serve,
     Json, Router,
 };
+use domain::AuthAPIError;
 use redis::{Client, RedisResult};
+use routes::{login, logout, signup, verify_2fa, verify_token};
 use serde::{Deserialize, Serialize};
 use sqlx::{postgres::PgPoolOptions, PgPool};
-use std::error::Error;
-use tokio::net::TcpListener;
-use tower_http::{cors::CorsLayer, services::ServeDir, trace::TraceLayer};
+use tower_http::{cors::CorsLayer, services::ServeDir};
 
 pub mod app_state;
 pub mod domain;
@@ -18,66 +21,42 @@ pub mod routes;
 pub mod services;
 pub mod utils;
 
-use app_state::AppState;
-
-use crate::{
-    routes::{login, logout, signup, verify_2fa, verify_token},
-    utils::tracing::{make_span_with_request_id, on_request, on_response},
-};
-
-// This struct encapsulates our application-related logic.
 pub struct Application {
-    server: Serve<TcpListener, Router, Router>,
-    // address is exposed as a public field
-    // so we have access to it in tests.
+    server: Serve<Router, Router>,
     pub address: String,
 }
 
 impl Application {
     pub async fn build(app_state: AppState, address: &str) -> Result<Self, Box<dyn Error>> {
-        let assets_dir = ServeDir::new("assets");
         let allowed_origins = [
             "http://localhost:8000".parse()?,
-            // TODO: Replace [YOUR_DROPLET_IP] with your Droplet IP address
-            // "http://[YOUR_DROPLET_IP]:8000".parse()?,
+            "http://[YOUR_DROPLET_IP]:8000".parse()?,
         ];
+
         let cors = CorsLayer::new()
-            // Allow GET and POST requests
             .allow_methods([Method::GET, Method::POST])
-            // Allow cookies to be included in requests
             .allow_credentials(true)
             .allow_origin(allowed_origins);
 
         let router = Router::new()
-            .fallback_service(assets_dir)
+            .nest_service("/", ServeDir::new("assets"))
             .route("/signup", post(signup))
             .route("/login", post(login))
             .route("/verify-2fa", post(verify_2fa))
             .route("/logout", post(logout))
             .route("/verify-token", post(verify_token))
             .with_state(app_state)
-            .layer(cors)
-            .layer(
-                // New!
-                // Add a TraceLayer for HTTP requests to enable detailed tracing
-                // This layer will create spans for each request using the make_span_with_request_id function,
-                // and log events at the start and end of each request using on_request and on_response functions.
-                TraceLayer::new_for_http()
-                    .make_span_with(make_span_with_request_id)
-                    .on_request(on_request)
-                    .on_response(on_response),
-            );
+            .layer(cors);
 
         let listener = tokio::net::TcpListener::bind(address).await?;
         let address = listener.local_addr()?.to_string();
         let server = axum::serve(listener, router);
 
-        Ok(Self { server, address })
+        Ok(Application { server, address })
     }
 
     pub async fn run(self) -> Result<(), std::io::Error> {
-        println!("test");
-        tracing::info!("listening on {}", &self.address);
+        println!("listening on {}", &self.address);
         self.server.await
     }
 }
@@ -86,7 +65,6 @@ impl Application {
 pub struct ErrorResponse {
     pub error: String,
 }
-use domain::AuthAPIError;
 
 impl IntoResponse for AuthAPIError {
     fn into_response(self) -> Response {
@@ -98,8 +76,7 @@ impl IntoResponse for AuthAPIError {
             }
             AuthAPIError::MissingToken => (StatusCode::BAD_REQUEST, "Missing auth token"),
             AuthAPIError::InvalidToken => (StatusCode::UNAUTHORIZED, "Invalid auth token"),
-            AuthAPIError::UnexpectedError(_) => {
-                // Updated!
+            AuthAPIError::UnexpectedError => {
                 (StatusCode::INTERNAL_SERVER_ERROR, "Unexpected error")
             }
         };
@@ -111,11 +88,10 @@ impl IntoResponse for AuthAPIError {
 }
 
 pub async fn get_postgres_pool(url: &str) -> Result<PgPool, sqlx::Error> {
-    // Create a new PostgreSQL connection pool
     PgPoolOptions::new().max_connections(5).connect(url).await
 }
 
-pub fn get_redis_client(url: &str) -> RedisResult<Client> {
-    let redis_url = format!("redis://{}/", url);
+pub fn get_redis_client(redis_hostname: String) -> RedisResult<Client> {
+    let redis_url = format!("redis://{}/", redis_hostname);
     redis::Client::open(redis_url)
 }

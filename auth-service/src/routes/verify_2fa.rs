@@ -23,10 +23,11 @@ pub async fn verify_2fa(
         Err(_) => return (jar, Err(AuthAPIError::InvalidCredentials)),
     };
 
-    let two_fa_code = match TwoFACode::parse(request.code_2fa.clone()) {
+    let two_fa_code = match TwoFACode::parse(request.two_fa_code) {
         Ok(two_fa_code) => two_fa_code,
         Err(_) => return (jar, Err(AuthAPIError::InvalidCredentials)),
     };
+
     let mut two_fa_code_store = state.two_fa_code_store.write().await;
 
     let code_tuple = match two_fa_code_store.get_code(&email).await {
@@ -52,11 +53,11 @@ pub async fn verify_2fa(
     (updated_jar, Ok(()))
 }
 
-#[derive(Deserialize)]
+#[derive(Debug, Deserialize)]
 pub struct Verify2FARequest {
     pub email: String,
     #[serde(rename = "loginAttemptId")]
     pub login_attempt_id: String,
     #[serde(rename = "2FACode")]
-    pub code_2fa: String,
+    pub two_fa_code: String,
 }

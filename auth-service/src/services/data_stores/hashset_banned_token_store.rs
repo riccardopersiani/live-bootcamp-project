@@ -1,43 +1,46 @@
 use std::collections::HashSet;
 
-use crate::domain::{BannedTokenStore, BannedTokenStoreError};
-#[derive(Debug, Default)]
+use crate::domain::data_stores::{BannedTokenStore, BannedTokenStoreError};
+
+#[derive(Default)]
 pub struct HashsetBannedTokenStore {
     tokens: HashSet<String>,
 }
 
 #[async_trait::async_trait]
 impl BannedTokenStore for HashsetBannedTokenStore {
-    async fn store_token(&mut self, value: String) -> Result<(), BannedTokenStoreError> {
-        self.tokens.insert(value);
+    async fn add_token(&mut self, token: String) -> Result<(), BannedTokenStoreError> {
+        self.tokens.insert(token);
         Ok(())
     }
 
-    async fn check_if_exists(&self, value: String) -> Result<bool, BannedTokenStoreError> {
-        Ok(self.tokens.contains(&value))
+    async fn contains_token(&self, token: &str) -> Result<bool, BannedTokenStoreError> {
+        Ok(self.tokens.contains(token))
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-
     #[tokio::test]
-    pub async fn test_store_token() {
-        let mut hashset = HashsetBannedTokenStore::default();
-        let token: String = String::from("test");
-        let result = hashset.store_token(token.clone()).await;
+    async fn test_add_token() {
+        let mut store = HashsetBannedTokenStore::default();
+        let token = "test_token".to_owned();
+
+        let result = store.add_token(token.clone()).await;
+
         assert!(result.is_ok());
-        assert!(hashset.tokens.contains(&token));
+        assert!(store.tokens.contains(&token));
     }
 
     #[tokio::test]
-    pub async fn test_check_if_exists_false() {
-        let mut hashset: HashsetBannedTokenStore = HashsetBannedTokenStore::default();
-        let token = String::from("test");
-        hashset.tokens.insert(token.clone());
+    async fn test_contains_token() {
+        let mut store = HashsetBannedTokenStore::default();
+        let token = "test_token".to_owned();
+        store.tokens.insert(token.clone());
 
-        let result = hashset.check_if_exists(token).await;
-        assert!(result.unwrap())
+        let result = store.contains_token(&token).await;
+
+        assert!(result.unwrap());
     }
 }

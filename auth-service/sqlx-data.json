@@ -5,7 +5,11 @@
       "columns": [],
       "nullable": [],
       "parameters": {
-        "Left": ["Text", "Text", "Bool"]
+        "Left": [
+          "Text",
+          "Text",
+          "Bool"
+        ]
       }
     },
     "query": "\n            INSERT INTO users (email, password_hash, requires_2fa)\n            VALUES ($1, $2, $3)\n            "
@@ -29,9 +33,15 @@
           "type_info": "Bool"
         }
       ],
-      "nullable": [false, false, false],
+      "nullable": [
+        false,
+        false,
+        false
+      ],
       "parameters": {
-        "Left": ["Text"]
+        "Left": [
+          "Text"
+        ]
       }
     },
     "query": "\n            SELECT email, password_hash, requires_2fa\n            FROM users\n            WHERE email = $1\n            "
