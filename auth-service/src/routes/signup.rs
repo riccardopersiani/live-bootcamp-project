@@ -1,4 +1,5 @@
 use axum::{extract::State, http::StatusCode, response::IntoResponse, Json};
+use secrecy::SecretString;
 use serde::{Deserialize, Serialize};
 
 use crate::{
@@ -33,11 +34,6 @@ pub async fn signup(
 
     Ok((StatusCode::CREATED, response))
 }
-
-//...
-use secrecy::SecretString;
-
-//...
 
 #[derive(Deserialize)]
 pub struct SignupRequest {

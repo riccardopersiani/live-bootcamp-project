@@ -11,6 +11,7 @@ use axum::{
 use domain::AuthAPIError;
 use redis::{Client, RedisResult};
 use routes::{login, logout, signup, verify_2fa, verify_token};
+use secrecy::{ExposeSecret, SecretString};
 use serde::{Deserialize, Serialize};
 use sqlx::{postgres::PgPoolOptions, PgPool};
 use tower_http::{cors::CorsLayer, services::ServeDir};
@@ -87,8 +88,11 @@ impl IntoResponse for AuthAPIError {
     }
 }
 
-pub async fn get_postgres_pool(url: &str) -> Result<PgPool, sqlx::Error> {
-    PgPoolOptions::new().max_connections(5).connect(url).await
+pub async fn get_postgres_pool(url: &SecretString) -> Result<PgPool, sqlx::Error> {
+    PgPoolOptions::new()
+        .max_connections(5)
+        .connect(url.expose_secret())
+        .await
 }
 
 pub fn get_redis_client(redis_hostname: String) -> RedisResult<Client> {

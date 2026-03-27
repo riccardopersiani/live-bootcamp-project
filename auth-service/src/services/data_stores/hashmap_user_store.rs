@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use crate::domain::{Email, HashedPassword, User, UserStore, UserStoreError};
+use crate::domain::{Email, Password, User, UserStore, UserStoreError};
 
 #[derive(Default)]
 pub struct HashmapUserStore {
@@ -27,7 +27,7 @@ impl UserStore for HashmapUserStore {
     async fn validate_user(
         &self,
         email: &Email,
-        password: &HashedPassword,
+        password: &Password,
     ) -> Result<(), UserStoreError> {
         match self.users.get(email) {
             Some(user) => {
@@ -45,13 +45,16 @@ impl UserStore for HashmapUserStore {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use secrecy::SecretString;
 
     #[tokio::test]
     async fn test_add_user() {
         let mut user_store = HashmapUserStore::default();
         let user = User {
-            email: Email::parse("test@example.com".to_owned()).unwrap(),
-            password: HashedPassword::parse("password".to_owned().into()).unwrap(),
+            email: Email::parse(SecretString::new("test@example.com".to_owned().into_boxed_str()))
+                .unwrap(),
+            password: Password::parse(SecretString::new("password".to_owned().into_boxed_str()))
+                .unwrap(),
             requires_2fa: false,
         };
 
@@ -67,11 +70,13 @@ mod tests {
     #[tokio::test]
     async fn test_get_user() {
         let mut user_store = HashmapUserStore::default();
-        let email = Email::parse("test@example.com".to_owned()).unwrap();
+        let email = Email::parse(SecretString::new("test@example.com".to_owned().into_boxed_str()))
+            .unwrap();
 
         let user = User {
             email: email.clone(),
-            password: HashedPassword::parse("password".to_owned().into()).unwrap(),
+            password: Password::parse(SecretString::new("password".to_owned().into_boxed_str()))
+                .unwrap(),
             requires_2fa: false,
         };
 
@@ -82,7 +87,12 @@ mod tests {
 
         // Test getting a user that doesn't exist
         let result = user_store
-            .get_user(&Email::parse("nonexistent@example.com".to_owned()).unwrap())
+            .get_user(
+                &Email::parse(SecretString::new(
+                    "nonexistent@example.com".to_owned().into_boxed_str(),
+                ))
+                .unwrap(),
+            )
             .await;
 
         assert_eq!(result, Err(UserStoreError::UserNotFound));
@@ -91,8 +101,10 @@ mod tests {
     #[tokio::test]
     async fn test_validate_user() {
         let mut user_store = HashmapUserStore::default();
-        let email = Email::parse("test@example.com".to_owned()).unwrap();
-        let password = HashedPassword::parse("password".to_owned().into()).unwrap();
+        let email = Email::parse(SecretString::new("test@example.com".to_owned().into_boxed_str()))
+            .unwrap();
+        let password = Password::parse(SecretString::new("password".to_owned().into_boxed_str()))
+            .unwrap();
 
         let user = User {
             email: email.clone(),
@@ -106,14 +118,19 @@ mod tests {
         assert_eq!(result, Ok(()));
 
         // Test validating a user that exists with incorrect password
-        let wrong_password = HashedPassword::parse("wrongpassword".to_owned().into()).unwrap();
+        let wrong_password =
+            Password::parse(SecretString::new("wrongpassword".to_owned().into_boxed_str()))
+                .unwrap();
         let result = user_store.validate_user(&email, &wrong_password).await;
         assert_eq!(result, Err(UserStoreError::InvalidCredentials));
 
         // Test validating a user that doesn't exist
         let result = user_store
             .validate_user(
-                &Email::parse("nonexistent@example.com".to_string()).unwrap(),
+                &Email::parse(SecretString::new(
+                    "nonexistent@example.com".to_owned().into_boxed_str(),
+                ))
+                .unwrap(),
                 &password,
             )
             .await;
