@@ -1,5 +1,6 @@
 use std::sync::Arc;
 
+use color_eyre::eyre::Context;
 use redis::{Commands, Connection};
 use serde::{Deserialize, Serialize};
 use tokio::sync::RwLock;
@@ -33,16 +34,17 @@ impl TwoFACodeStore for RedisTwoFACodeStore {
             login_attempt_id.as_ref().to_owned(),
             code.as_ref().to_owned(),
         );
-        let serialized_data =
-            serde_json::to_string(&data).map_err(|_| TwoFACodeStoreError::UnexpectedError)?;
+        let serialized_data = serde_json::to_string(&data)
+            .wrap_err("failed to serialize 2FA tuple") // New!
+            .map_err(TwoFACodeStoreError::UnexpectedError)?; // Updated!
 
         let _: () = self
             .conn
             .write()
             .await
             .set_ex(&key, serialized_data, TEN_MINUTES_IN_SECONDS)
-            .map_err(|_| TwoFACodeStoreError::UnexpectedError)?;
-
+            .wrap_err("failed to set 2FA code in Redis") // New!
+            .map_err(TwoFACodeStoreError::UnexpectedError)?; // Updated!
         Ok(())
     }
 
